@@ -1,112 +1,191 @@
+# Edit this configuration file to define what should be installed on
+# your system.  Help is available in the configuration.nix(5) man page
+# and in the NixOS manual (accessible by running ‘nixos-help’).
+
 { config, lib, pkgs, ... }:
 
-let emacs = pkgs.emacs.overrideAttrs (old: rec {
-  src = fetchGit {
-    url = "https://github.com/emacs-mirror/emacs";
+let
+
+tpacpi-bat = pkgs.tpacpi-bat.overrideAttrs (old: {
+  version = "master";
+  src = pkgs.fetchFromGitHub {
+    owner = "teleshoes";
+    repo = "tpacpi-bat";
+    rev = "4959b520256cbeb04842f0927e75a63a5ca5030e";
+    sha256 = "1w9wzdwy7iladklzwzv8yj1xd9x7q8gi3032db5n54d2q1n3qldn";
   };
 });
 
-confDir = /home/demo/nixos-config;
+emacs = (pkgs.emacs.overrideAttrs (old: {
+  src = pkgs.fetchgit {
+    url = "https://github.com/emacs-mirror/emacs.git";
+    rev = "ef0fc0bed1c97a1c803fa83bee438ca9cfd238b0";
+    sha256 = "0jv9vh9hrx9svdy0jz6zyz3ylmw7sbf0xbk7i80yxbbia2j8k9j2";
+    fetchSubmodules = false;
+  };
+  patches = [];
+  version = "27";
+  name = "emacs-27";
+})).override { srcRepo = true; };
 
 in
 
-
 {
-  imports = [ <nixpkgs/nixos/modules/installer/virtualbox-demo.nix> 
-              ./extra.nix
-            ];
+  imports =
+    [ # Include the results of the hardware scan.
+      ./hardware-configuration.nix
+    ];
 
-  # Let demo build as a trusted user.
-# nix.trustedUsers = [ "demo" ];
+  # Use the systemd-boot EFI boot loader.
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
 
-# Mount a VirtualBox shared folder.
-# This is configurable in the VirtualBox menu at
-# Machine / Settings / Shared Folders.
-# fileSystems."/mnt" = {
-#   fsType = "vboxsf";
-#   device = "nameofdevicetomount";
-#   options = [ "rw" ];
-# };
+  boot.initrd.luks.devices = [
+    { name = "root";
+      device = "/dev/sda2";
+      preLVM = true;
+    }
+  ];
 
-# By default, the NixOS VirtualBox demo image includes SDDM and Plasma.
-# If you prefer another desktop manager or display manager, you may want
-# to disable the default.
-# services.xserver.desktopManager.plasma5.enable = lib.mkForce false;
-# services.xserver.displayManager.sddm.enable = lib.mkForce false;
+  nix.binaryCaches = [
+    "https://cache.nixos.org/"
+    "https://alexpeits.cachix.org"
+  ];
 
-# Enable GDM/GNOME by uncommenting above two lines and two lines below.
-# services.xserver.displayManager.gdm.enable = true;
-# services.xserver.desktopManager.gnome3.enable = true;
+  nix.binaryCachePublicKeys = [
+    "alexpeits.cachix.org-1:O5CoFuKPb8twVOp1OrfSOPfgaEo5X5xlIqGg6dMEgB4="
+  ];
+  
+  networking.networkmanager.enable = true;
 
-services.gnome3.gnome-terminal-server.enable = true;
+  networking.hostName = "nixos"; # Define your hostname.
+  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
-nixpkgs.config.allowUnfree = true;
-# nixpkgs.config.packageOverrides = pkgs: let self = {
-#   emacs = pkgs.callPackage /home/demo/nixos-config/emacs {};
-# }; in self;
+  # Configure network proxy if necessary
+  # networking.proxy.default = "http://user:password@proxy:port/";
+  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
-nixpkgs.overlays =  [ (self: super: {
-  emacs = pkgs.callPackage /home/demo/nixos-config/emacs { pkgs = super; };
-})];
+  # Select internationalisation properties.
+  # i18n = {
+  #   consoleFont = "Lat2-Terminus16";
+  #   consoleKeyMap = "us";
+  #   defaultLocale = "en_US.UTF-8";
+  # };
 
+  # Set your time zone.
+  time.timeZone = "Europe/London";
 
+  nixpkgs.config.allowUnfree = true;
 
-services.xserver = {
-  enable = true;
-  displayManager = {
-    gdm.enable = true;
-    sddm.enable = lib.mkForce false;
-  };
-  desktopManager = {
-    default = "xfce";
-    plasma5.enable = lib.mkForce false;
-    xfce = {
+  # List packages installed in system profile. To search, run:
+  # $ nix search wget
+  environment.systemPackages = [
+    pkgs.wget
+    pkgs.vim
+    pkgs.git
+    pkgs.google-chrome
+    pkgs.spotify
+    pkgs.ag
+    pkgs.rofi
+    pkgs.xscreensaver
+    pkgs.gnome3.gnome-terminal
+    pkgs.cachix
+    tpacpi-bat
+    # emacs
+  ];
+
+  # Some programs need SUID wrappers, can be configured further or are
+  # started in user sessions.
+  # programs.mtr.enable = true;
+  # programs.gnupg.agent = { enable = true; enableSSHSupport = true; };
+
+  # List services that you want to enable:
+
+  # Enable the OpenSSH daemon.
+  # services.openssh.enable = true;
+
+  # Open ports in the firewall.
+  # networking.firewall.allowedTCPPorts = [ ... ];
+  # networking.firewall.allowedUDPPorts = [ ... ];
+  # Or disable the firewall altogether.
+  # networking.firewall.enable = false;
+
+  # Enable CUPS to print documents.
+  # services.printing.enable = true;
+
+  # Enable sound.
+  sound.enable = true;
+  hardware.pulseaudio.enable = true;
+
+  # Enable the X11 windowing system.
+  # services.xserver.enable = true;
+  # services.xserver.layout = "us";
+  # services.xserver.xkbOptions = "eurosign:e";
+
+  # Enable touchpad support.
+  # services.xserver.libinput.enable = true;
+
+  # Enable the KDE Desktop Environment.
+  # services.xserver.displayManager.sddm.enable = true;
+  # services.xserver.desktopManager.plasma5.enable = true;
+
+  services.devmon.enable = true;
+  # security.setuidPrograms = ["udevil"];
+
+  services.gnome3.gnome-terminal-server.enable = true;
+
+  services.xserver = {
+    libinput = {
       enable = true;
-      noDesktop = false;
-      enableXfwm = false;
-      extraSessionCommands = ''
-        (sleep 6 && xset r rate 500 45) &
-        setxkbmap -option caps:escape
-        xmessage "hey" &
-      '';
+      naturalScrolling = true;
+    };
+    enable = true;
+    displayManager = {
+      gdm.enable = true;
+      sddm.enable = lib.mkForce false;
+    };
+    desktopManager = {
+      default = "xfce";
+      plasma5.enable = lib.mkForce false;
+      xfce = {
+        enable = true;
+        noDesktop = false;
+        enableXfwm = false;
+        extraSessionCommands = ''
+          (sleep 6 && xset r rate 500 45) &
+          setxkbmap -option caps:escape
+          xscreensaver -nosplash &
+        '';
+      };
+    };
+    windowManager = {
+      default = "xmonad";
+      xmonad = {
+        enable = true;
+        enableContribAndExtras = true;
+        extraPackages = haskellPackages: [
+          haskellPackages.xmonad
+          haskellPackages.xmonad-contrib
+          haskellPackages.xmonad-extras
+        ];
+      };
     };
   };
-  windowManager = {
-    default = "xmonad";
-    xmonad = {
-      enable = true;
-      enableContribAndExtras = true;
-      extraPackages = haskellPackages : [
-        haskellPackages.xmonad-contrib
-        haskellPackages.xmonad-extras
-        haskellPackages.xmonad
-      ];
-    };
+
+  # Define a user account. Don't forget to set a password with ‘passwd’.
+  users.users.alex = {
+    createHome = true;
+    extraGroups = ["wheel" "video" "audio" "disk" "networkmanager"];
+    group = "users";
+    home = "/home/alex";
+    isNormalUser = true;
+    uid = 1000;
   };
-};
 
-# programs.bash.interactiveShellInit = ''
-#   echo hey
-# '';
-
-# Set your time zone.
-# time.timeZone = "Europe/Amsterdam";
-
-# List packages installed in system profile. To search, run:
-# \$ nix search wget
-environment.systemPackages = [
-  pkgs.wget 
-  pkgs.vim
-  pkgs.git
-  pkgs.emacs
-  pkgs.rofi
-  pkgs.gnome3.gnome-terminal
-  pkgs.xorg.xmessage
-  pkgs.ag
-  pkgs.google-chrome
-];
-
-# Enable the OpenSSH daemon.
-# services.openssh.enable = true;
+  # This value determines the NixOS release with which your system is to be
+  # compatible, in order to avoid breaking some software such as database
+  # servers. You should change this only after NixOS release notes say you
+  # should.
+  system.stateVersion = "19.03"; # Did you read the comment?
 
 }
